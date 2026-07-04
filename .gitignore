@@ -18,15 +18,11 @@ LmKitQuickStart/Training/xprema_env/
 *.pth
 *.safetensors
 
-# Generated dataset (large, regenerated via Mode 2)
-LmKitQuickStart/Models/Xprema/xprema_dataset.json
+# Generated training output (binary/large)
 LmKitQuickStart/Models/Xprema/unsloth_output/
 
 # RAG index files (regenerated automatically)
 LmKitQuickStart/RagData/
-
-# Discovered URLs cache
-LmKitQuickStart/TrainingData/sudanese_discovered_urls.json
 
 # Secrets / local config
 *.env
