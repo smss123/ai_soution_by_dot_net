@@ -1,0 +1,37 @@
+# Build output
+**/bin/
+**/obj/
+
+# IDE
+.idea/
+.vs/
+*.user
+
+# Python training env (large, reproducible via Mode 4)
+LmKitQuickStart/Training/xprema_env/
+
+# Large model files
+*.gguf
+*.ggml
+*.bin
+*.pt
+*.pth
+*.safetensors
+
+# Generated dataset (large, regenerated via Mode 2)
+LmKitQuickStart/Models/Xprema/xprema_dataset.json
+LmKitQuickStart/Models/Xprema/unsloth_output/
+
+# RAG index files (regenerated automatically)
+LmKitQuickStart/RagData/
+
+# Discovered URLs cache
+LmKitQuickStart/TrainingData/sudanese_discovered_urls.json
+
+# Secrets / local config
+*.env
+appsettings.Local.json
+
+# Temp inspection script
+inspect_dll.csx
+InspectDll/
