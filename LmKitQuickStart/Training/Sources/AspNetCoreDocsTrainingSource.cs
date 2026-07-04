@@ -6,7 +6,7 @@ namespace LmKitQuickStart.Training.Sources;
 /// <summary>
 /// Generates training samples from official Microsoft ASP.NET Core documentation.
 /// </summary>
-public sealed class AspNetCoreDocsTrainingSource : ITrainingSource
+public sealed class  AspNetCoreDocsTrainingSource : ITrainingSource
 {
     public string Name => "ASP.NET Core Docs";
 

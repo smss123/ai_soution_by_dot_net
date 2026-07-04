@@ -92,7 +92,10 @@ public static class XpremaTrainer
 
         Console.WriteLine("[deps] Installing Unsloth + TRL + datasets...");
         exit = await RunCommandAsync(PipExe,
-            "install \"unsloth[cu121-torch250] @ git+https://github.com/unslothai/unsloth.git\" trl datasets bitsandbytes accelerate numpy",
+            "install \"unsloth[cu121-torch250] @ git+https://github.com/unslothai/unsloth.git\" " +
+            "\"trl>=0.15,<0.19\" \"transformers>=4.49,<4.57\" \"tokenizers>=0.21,<0.22\" " +
+            "\"datasets>=3.0,<3.7\" \"huggingface_hub>=0.27,<0.31\" \"accelerate>=1.2,<1.9\" " +
+            "\"peft>=0.14,<0.19\" bitsandbytes numpy",
             TrainingDir, ct);
 
         if (exit != 0)
