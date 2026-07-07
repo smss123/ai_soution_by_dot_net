@@ -54,12 +54,12 @@ public static class XpremaFineTuner
     }
 
     /// <summary>
-    /// Loads the Xprema merged model if it exists, otherwise loads base Gemma.
+    /// Loads the Xprema merged model if it exists, otherwise loads the base model.
     /// </summary>
     public static LM Load(string basePath)
     {
         string modelToLoad = MergedExists ? MergedPath : basePath;
-        string label       = MergedExists ? "Xprema"   : "base Gemma (Xprema not trained yet)";
+        string label       = MergedExists ? "Xprema"   : "base model (Xprema not trained yet)";
 
         Console.WriteLine($"Loading {label}...");
 
@@ -81,12 +81,11 @@ public static class XpremaFineTuner
         Console.WriteLine("""
   To train Xprema:
     1. Run mode 2 → "Build dataset" to generate Models/Xprema/xprema_dataset.json
-    2. Fine-tune with llama.cpp:
-         llama-finetune --model base.gguf --train-data xprema_dataset.json --lora-out xprema-adapter.gguf
-       Or with Unsloth (Python):
-         python train.py --dataset xprema_dataset.json --output xprema-adapter.gguf
-    3. Place adapter at: Models/Xprema/xprema-adapter.gguf
-    4. Run mode 2 → "Merge adapter" to produce xprema.gguf
+    2. Run mode 4 to fine-tune with Unsloth (saves a HuggingFace LoRA adapter)
+    3. Convert the adapter to GGUF with llama.cpp:
+         python convert_lora_to_gguf.py Models/Xprema/xprema-adapter-hf \
+             --base <BASE_MODEL> --outfile Models/Xprema/xprema-adapter.gguf
+    4. Run mode 3 → merges the adapter to produce xprema.gguf
     5. Run mode 1 to chat with Xprema
 """);
         Console.ResetColor();

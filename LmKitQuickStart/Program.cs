@@ -15,8 +15,7 @@ Runtime.LogLevel   = Runtime.LMKitLogLevel.Information;
 Runtime.EnableCuda = true;
 Runtime.Initialize();
 
-string basePath = GemmaModelPath();
-if (!File.Exists(basePath)) { Console.WriteLine($"Base model not found:\n{basePath}"); return; }
+string basePath = BaseModelPath();
 
 // ── mode selection — supports --mode 1/2/3 arg for non-interactive use ──
 string mode = args.FirstOrDefault(a => a.StartsWith("--mode="))?.Split('=')[1]
@@ -34,6 +33,13 @@ if (string.IsNullOrEmpty(mode))
     mode = (Console.ReadLine() ?? "1").Trim();
 }
 
+// Mode 4 (Unsloth training) is pure Python and doesn't touch the local GGUF.
+if (mode != "4" && !File.Exists(basePath))
+{
+    Console.WriteLine($"Base model not found:\n{basePath}");
+    return;
+}
+
 switch (mode)
 {
     case "2": await RunBuildDatasetAsync(basePath);                       break;
@@ -43,7 +49,7 @@ switch (mode)
 }
 
 // ─────────────────────────────────────────────────────────────────
-// CHAT MODE  — loads Xprema if merged model exists, else base Gemma
+// CHAT MODE  — loads Xprema if merged model exists, else the base model
 // ─────────────────────────────────────────────────────────────────
 static async Task RunChatAsync(string basePath)
 {
@@ -54,7 +60,7 @@ static async Task RunChatAsync(string basePath)
     RagSamerCv?             cvRag  = null;
     SingleTurnConversation? cvChat = null;
 
-    string modelName = XpremaFineTuner.MergedExists ? "Xprema" : "Gemma";
+    string modelName = XpremaFineTuner.MergedExists ? "Xprema" : "Base";
     Console.WriteLine($"[{modelName}] Ask anything — AI routes to the right knowledge base.");
     Console.WriteLine("  ABP Framework docs  |  Samer CV  |  'quit' to exit\n");
 
@@ -176,10 +182,10 @@ static void RunMergeAdapter(string basePath)
 
 // ── shared helpers ─────────────────────────────────────────────────
 
-static string GemmaModelPath() => Path.Combine(
+static string BaseModelPath() => Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
     ".lmstudio", "models",
-    "lmstudio-community", "gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf");
+    "lmstudio-community", "Qwen2.5-7B-Instruct-GGUF", "Qwen2.5-7B-Instruct-Q4_K_M.gguf");
 
 static RagTarget ClassifyQuery(string query, LM model)
 {

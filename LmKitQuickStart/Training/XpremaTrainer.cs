@@ -129,8 +129,9 @@ public static class XpremaTrainer
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"\n[train] Training complete in {sw.Elapsed:hh\\:mm\\:ss}.");
             Console.ResetColor();
-            Console.WriteLine($"Adapter saved to: {XpremaFineTuner.AdapterPath}");
-            Console.WriteLine("Run mode 3 to merge → xprema.gguf, then mode 1 to chat.");
+            Console.WriteLine("LoRA adapter saved in HuggingFace format (see script output above).");
+            Console.WriteLine($"Convert it to GGUF with llama.cpp's convert_lora_to_gguf.py, saving to:\n  {XpremaFineTuner.AdapterPath}");
+            Console.WriteLine("Then run mode 3 to merge → xprema.gguf, then mode 1 to chat.");
         }
         else
         {

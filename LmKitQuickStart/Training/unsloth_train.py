@@ -1,8 +1,11 @@
 """
 Xprema LoRA Fine-tuning Script using Unsloth
 =============================================
-Trains Gemma with QLoRA on the Xprema dataset (ShareGPT format).
-Outputs a GGUF adapter file ready for LM-Kit's LoraMerger.
+Trains a base model with QLoRA on the Xprema dataset (ShareGPT format).
+Saves the LoRA adapter in HuggingFace format. Convert it to GGUF separately
+with llama.cpp's convert_lora_to_gguf.py before using LM-Kit's LoraMerger —
+Unsloth's save_pretrained_gguf() merges base+LoRA into a full model GGUF,
+which is NOT a LoRA-only adapter and cannot be fed to LoraMerger.
 
 Requirements: see setup_training_env.ps1
 Run: python unsloth_train.py
@@ -16,11 +19,13 @@ SCRIPT_DIR   = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 DATASET_PATH = PROJECT_ROOT / "Models" / "Xprema" / "xprema_dataset.json"
 OUTPUT_DIR   = PROJECT_ROOT / "Models" / "Xprema" / "unsloth_output"
+ADAPTER_DIR  = PROJECT_ROOT / "Models" / "Xprema" / "xprema-adapter-hf"
 ADAPTER_PATH = PROJECT_ROOT / "Models" / "Xprema" / "xprema-adapter.gguf"
 
-# Base model — Gemma 2 4B (HuggingFace, same architecture as your GGUF)
-BASE_MODEL = "google/gemma-2-2b-it"   # 2B fits comfortably in 8GB VRAM
-# For 4B use: "google/gemma-2-4b-it"  (needs ~7-8GB VRAM with 4-bit)
+# Base model — start with the smallest Qwen2.5 variant to validate the
+# pipeline quickly; bump up once training runs cleanly end-to-end.
+# Qwen2.5 sizes (ascending): 0.5B, 1.5B, 3B, 7B, 14B, 32B, 72B.
+BASE_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 
 # ── LoRA config ────────────────────────────────────────────────────
 LORA_RANK    = 16
@@ -81,7 +86,7 @@ def main():
 
     # Import after CUDA check
     from unsloth import FastLanguageModel
-    from unsloth.chat_templates import get_chat_template
+    from unsloth.chat_templates import get_chat_template, train_on_responses_only
     from trl import SFTTrainer, SFTConfig
     from datasets import Dataset
 
@@ -94,7 +99,7 @@ def main():
         dtype           = None,   # auto-detect
     )
 
-    tokenizer = get_chat_template(tokenizer, chat_template="gemma")
+    tokenizer = get_chat_template(tokenizer, chat_template="qwen2.5")
 
     # 2. Apply LoRA
     model = FastLanguageModel.get_peft_model(
@@ -147,24 +152,29 @@ def main():
         ),
     )
 
+    # Only compute loss on assistant turns, not the user/system prompt tokens
+    trainer = train_on_responses_only(
+        trainer,
+        instruction_part = "<|im_start|>user\n",
+        response_part    = "<|im_start|>assistant\n",
+    )
+
     trainer_stats = trainer.train()
     print(f"\nTraining complete. Loss: {trainer_stats.training_loss:.4f}")
 
-    # 5. Save GGUF adapter (Q4_K_M quantization)
-    print(f"\nExporting adapter to GGUF: {ADAPTER_PATH}")
-    model.save_pretrained_gguf(
-        str(ADAPTER_PATH.with_suffix("")),   # unsloth adds .gguf
-        tokenizer,
-        quantization_method = "q4_k_m",
-    )
+    # 5. Save the LoRA adapter in HuggingFace format
+    print(f"\nSaving LoRA adapter: {ADAPTER_DIR}")
+    model.save_pretrained(str(ADAPTER_DIR))
+    tokenizer.save_pretrained(str(ADAPTER_DIR))
 
-    # Rename if needed
-    expected = ADAPTER_PATH.with_suffix("") / "unsloth.Q4_K_M.gguf"
-    if expected.exists() and not ADAPTER_PATH.exists():
-        expected.rename(ADAPTER_PATH)
+    print(f"""
+✓ LoRA adapter saved: {ADAPTER_DIR}
 
-    print(f"\n✓ Adapter saved: {ADAPTER_PATH}")
-    print("Now run LmKitQuickStart mode 3 to merge into xprema.gguf")
+Convert it to a LoRA GGUF using llama.cpp (required before LM-Kit's LoraMerger can use it):
+  python <llama.cpp>/convert_lora_to_gguf.py {ADAPTER_DIR} \\
+      --base {BASE_MODEL} --outfile {ADAPTER_PATH}
+
+Then run LmKitQuickStart mode 3 to merge into xprema.gguf.""")
 
 
 if __name__ == "__main__":
