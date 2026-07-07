@@ -4,6 +4,7 @@ using LMKit.Model;
 using LMKit.Retrieval;
 using LMKit.TextGeneration;
 using LMKit.TextGeneration.Chat;
+using LMKit.TextGeneration.Sampling;
 using LmKitQuickStart.Rags;
 using LmKitQuickStart.Training;
 using System.Diagnostics;
@@ -68,9 +69,11 @@ static async Task RunChatAsync(string basePath)
     RagSamerCv?             cvRag  = null;
     SingleTurnConversation? cvChat = null;
 
+    SingleTurnConversation? modelChat = null;
+
     string modelName = XpremaFineTuner.MergedExists ? "Xprema" : "Base";
     Console.WriteLine($"[{modelName}] Ask anything — AI routes to the right knowledge base.");
-    Console.WriteLine("  ABP Framework docs  |  Samer CV  |  'quit' to exit\n");
+    Console.WriteLine("  ABP Framework docs  |  Samer CV  |  Questions about the model  |  'quit' to exit\n");
 
     while (true)
     {
@@ -96,7 +99,34 @@ static async Task RunChatAsync(string basePath)
 
         try
         {
-        if (target == RagTarget.Abp)
+        if (target == RagTarget.Model)
+        {
+            PrintLabel("About Xprema");
+
+            if (modelChat is null)
+            {
+                // Xprema (0.5B) is too weak to answer coherently about itself,
+                // so the larger router model generates this answer instead.
+                modelChat = new SingleTurnConversation(routerModel)
+                {
+                    SystemPrompt = "You are Xprema, a small AI model fine-tuned from Qwen2.5-0.5B-Instruct " +
+                                   "for Direct Aid Society. Answer questions about yourself briefly and " +
+                                   "honestly. Always reply in the same language the user wrote in.",
+                    MaximumCompletionTokens = 256,
+                    SamplingMode      = new RandomSampling { Temperature = 0.7f, TopP = 0.9f, TopK = 40 },
+                    RepetitionPenalty = { TokenCount = 256, RepeatPenalty = 1.3f, PresencePenalty = 0.6f },
+                };
+                modelChat.AfterTextCompletion += (_, e) =>
+                {
+                    if (e.SegmentType == TextSegmentType.UserVisible) Console.Write(e.Text);
+                };
+            }
+
+            PrintAnswerPrompt();
+            var result = await Task.Run(() => modelChat.Submit(query));
+            PrintStats(result.GeneratedTokenCount, result.TokenGenerationRate);
+        }
+        else if (target == RagTarget.Abp)
         {
             PrintLabel("ABP Docs");
 
@@ -127,8 +157,11 @@ static async Task RunChatAsync(string basePath)
                 cvRag.EnsureIndexed();
                 cvChat = new SingleTurnConversation(chatModel)
                 {
-                    SystemPrompt            = "Answer using only the provided context. If not found, say so.",
-                    MaximumCompletionTokens = 512
+                    SystemPrompt            = "Answer using only the provided context. If not found, say so. " +
+                                               "Always reply in the same language the user wrote in.",
+                    MaximumCompletionTokens = 512,
+                    SamplingMode      = new RandomSampling { Temperature = 0.7f, TopP = 0.9f, TopK = 40 },
+                    RepetitionPenalty = { TokenCount = 256, RepeatPenalty = 1.3f, PresencePenalty = 0.6f },
                 };
                 cvChat.AfterTextCompletion += (_, e) =>
                 {
@@ -212,10 +245,22 @@ static string RouterModelPath() => Path.Combine(
 static RagTarget ClassifyQuery(string query, LM model)
 {
     const string prompt =
-        "You are a query router. Reply with exactly one word: ABP, CV, or NONE.\n" +
-        "  ABP  = ABP Framework, modules, DDD, EF Core, Blazor, Angular, tenancy, permissions, CLI\n" +
-        "  CV   = Samer's resume, experience, skills, education, projects, certifications\n" +
-        "  NONE = neither";
+        "You are a query router. The user may write in any language, including Arabic. " +
+        "Reply with exactly one word: ABP, CV, MODEL, or NONE.\n" +
+        "  ABP   = ABP Framework, modules, DDD, EF Core, Blazor, Angular, tenancy, permissions, CLI\n" +
+        "  CV    = Samer's resume, experience, skills, education, projects, certifications\n" +
+        "  MODEL = the question is about the AI assistant itself — its name, who made/trained it, " +
+        "what model it is, or its abilities\n" +
+        "  NONE  = none of the above\n" +
+        "Examples:\n" +
+        "  \"what is your name\" -> MODEL\n" +
+        "  \"who trained you\" -> MODEL\n" +
+        "  \"ما اسمك\" -> MODEL\n" +
+        "  \"من دربك\" -> MODEL\n" +
+        "  \"what is dependency injection in abp\" -> ABP\n" +
+        "  \"what are samer's skills\" -> CV\n" +
+        "  \"who is samer\" -> CV\n" +
+        "  \"من هو سامر\" -> CV";
 
     var classifier = new SingleTurnConversation(model)
     {
@@ -226,8 +271,9 @@ static RagTarget ClassifyQuery(string query, LM model)
     string label = classifier.SubmitAsync(query).GetAwaiter().GetResult()
                               .Completion.Trim().ToUpperInvariant();
 
-    if (label.StartsWith("ABP")) return RagTarget.Abp;
-    if (label.StartsWith("CV"))  return RagTarget.Cv;
+    if (label.StartsWith("ABP"))   return RagTarget.Abp;
+    if (label.StartsWith("CV"))    return RagTarget.Cv;
+    if (label.StartsWith("MODEL")) return RagTarget.Model;
     return RagTarget.Unknown;
 }
 
@@ -248,4 +294,4 @@ static void PrintAnswerPrompt()
 static void PrintStats(int tokens, double rate) =>
     Console.WriteLine($"\n  [{tokens} tokens, {rate:F1} tok/s]\n");
 
-enum RagTarget { Unknown, Abp, Cv }
+enum RagTarget { Unknown, Abp, Cv, Model }
