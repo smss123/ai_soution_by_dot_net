@@ -12,8 +12,14 @@ public static class XpremaTrainer
     private static readonly string TrainingDir = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Training"));
 
-    private static readonly string EnvDir      = Path.Combine(TrainingDir, "xprema_env");
-    private static readonly string TrainScript = Path.Combine(TrainingDir, "unsloth_train.py");
+    private static readonly string EnvDir = Path.Combine(TrainingDir, "xprema_env");
+
+    // macOS has no CUDA, so Unsloth and bitsandbytes (both CUDA-only) can't run there —
+    // fall back to a plain transformers+peft LoRA script on MPS/CPU instead.
+    private static bool IsMac => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+
+    private static string TrainScript => Path.Combine(
+        TrainingDir, IsMac ? "mac_train.py" : "unsloth_train.py");
 
     private static string PythonExe => RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
         ? Path.Combine(EnvDir, "Scripts", "python.exe")
@@ -68,8 +74,11 @@ public static class XpremaTrainer
     private static async Task<bool> EnsureDependenciesAsync(CancellationToken ct)
     {
         // Quick check: if torch is importable, dependencies are already installed
+        string probeImports = IsMac
+            ? "import torch; import peft; import trl"
+            : "import torch; import unsloth; import trl";
         int check = await RunCommandAsync(PythonExe,
-            "-c \"import torch; import unsloth; import trl\"", TrainingDir, ct, silent: true);
+            $"-c \"{probeImports}\"", TrainingDir, ct, silent: true);
 
         if (check == 0)
         {
@@ -77,10 +86,15 @@ public static class XpremaTrainer
             return true;
         }
 
-        Console.WriteLine("[deps] Installing PyTorch (CUDA 12.1) — this may take a few minutes...");
-        int exit = await RunCommandAsync(PipExe,
-            "install torch torchvision --index-url https://download.pytorch.org/whl/cu121",
-            TrainingDir, ct);
+        Console.WriteLine(IsMac
+            ? "[deps] Installing PyTorch (CPU/MPS build)..."
+            : "[deps] Installing PyTorch (CUDA 12.1) — this may take a few minutes...");
+
+        int exit = IsMac
+            ? await RunCommandAsync(PipExe, "install torch torchvision", TrainingDir, ct)
+            : await RunCommandAsync(PipExe,
+                "install torch torchvision --index-url https://download.pytorch.org/whl/cu121",
+                TrainingDir, ct);
 
         if (exit != 0)
         {
@@ -90,13 +104,26 @@ public static class XpremaTrainer
             return false;
         }
 
-        Console.WriteLine("[deps] Installing Unsloth + TRL + datasets...");
-        exit = await RunCommandAsync(PipExe,
-            "install \"unsloth[cu121-torch250] @ git+https://github.com/unslothai/unsloth.git\" " +
-            "\"trl>=0.15,<0.19\" \"transformers>=4.49,<4.57\" \"tokenizers>=0.21,<0.22\" " +
-            "\"datasets>=3.0,<3.7\" \"huggingface_hub>=0.27,<0.31\" \"accelerate>=1.2,<1.9\" " +
-            "\"peft>=0.14,<0.19\" bitsandbytes numpy",
-            TrainingDir, ct);
+        if (IsMac)
+        {
+            // No Unsloth/bitsandbytes on macOS — plain transformers + peft + trl instead.
+            Console.WriteLine("[deps] Installing transformers + PEFT + TRL + datasets...");
+            exit = await RunCommandAsync(PipExe,
+                "install \"trl>=0.15,<0.19\" \"transformers>=4.49,<4.57\" \"tokenizers>=0.21,<0.22\" " +
+                "\"datasets>=3.0,<3.7\" \"huggingface_hub>=0.27,<0.31\" \"accelerate>=1.2,<1.9\" " +
+                "\"peft>=0.14,<0.19\" numpy",
+                TrainingDir, ct);
+        }
+        else
+        {
+            Console.WriteLine("[deps] Installing Unsloth + TRL + datasets...");
+            exit = await RunCommandAsync(PipExe,
+                "install \"unsloth[cu121-torch250] @ git+https://github.com/unslothai/unsloth.git\" " +
+                "\"trl>=0.15,<0.19\" \"transformers>=4.49,<4.57\" \"tokenizers>=0.21,<0.22\" " +
+                "\"datasets>=3.0,<3.7\" \"huggingface_hub>=0.27,<0.31\" \"accelerate>=1.2,<1.9\" " +
+                "\"peft>=0.14,<0.19\" bitsandbytes numpy",
+                TrainingDir, ct);
+        }
 
         if (exit != 0)
         {

@@ -185,7 +185,7 @@ static void RunMergeAdapter(string basePath)
 static string BaseModelPath() => Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
     ".lmstudio", "models",
-    "lmstudio-community", "Qwen2.5-7B-Instruct-GGUF", "Qwen2.5-7B-Instruct-Q4_K_M.gguf");
+    "lmstudio-community", "Qwen2.5-0.5B-Instruct-GGUF", "qwen2.5-0.5b-instruct-fp16.gguf");
 
 static RagTarget ClassifyQuery(string query, LM model)
 {

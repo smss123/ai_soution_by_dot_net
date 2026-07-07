@@ -20,6 +20,10 @@ LmKitQuickStart/Training/xprema_env/
 
 # Generated training output (binary/large)
 LmKitQuickStart/Models/Xprema/unsloth_output/
+LmKitQuickStart/Models/Xprema/xprema-adapter-hf/
+
+# llama.cpp checkout used for LoRA->GGUF conversion (cloned on demand)
+LmKitQuickStart/Training/llama.cpp/
 
 # RAG index files (regenerated automatically)
 LmKitQuickStart/RagData/
