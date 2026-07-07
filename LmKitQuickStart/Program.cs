@@ -86,6 +86,8 @@ static async Task RunChatAsync(string basePath)
             continue;
         }
 
+        try
+        {
         if (target == RagTarget.Abp)
         {
             PrintLabel("ABP Docs");
@@ -137,6 +139,13 @@ static async Task RunChatAsync(string basePath)
             PrintAnswerPrompt();
             var result = cvRag.Answer(query, matches, cvChat!);
             PrintStats(result.GeneratedTokenCount, result.TokenGenerationRate);
+        }
+        }
+        catch (Exception ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"\n  [Error answering query: {ex.Message}]\n");
+            Console.ResetColor();
         }
     }
 
