@@ -55,6 +55,14 @@ static async Task RunChatAsync(string basePath)
 {
     using LM chatModel = XpremaFineTuner.Load(basePath);
 
+    // Xprema is a 0.5B model — too weak to reliably follow the routing
+    // instruction, so a separate larger model handles query classification.
+    Console.WriteLine("Loading router model...");
+    using LM routerModel = new LM(RouterModelPath(),
+        deviceConfiguration: new LM.DeviceConfiguration { GpuLayerCount = 40 },
+        loadingProgress: p => { Console.Write($"\r  Loading {p * 100:F0}%  "); return true; });
+    Console.WriteLine(" Done.\n");
+
     AbpDocsKnowledgeBase?   abpKb  = null;
     RagAbpDocs?             abpRag = null;
     RagSamerCv?             cvRag  = null;
@@ -78,7 +86,7 @@ static async Task RunChatAsync(string basePath)
         Console.Write("  Routing... ");
         Console.ResetColor();
 
-        RagTarget target = ClassifyQuery(query, chatModel);
+        RagTarget target = ClassifyQuery(query, routerModel);
 
         if (target == RagTarget.Unknown)
         {
@@ -195,6 +203,11 @@ static string BaseModelPath() => Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
     ".lmstudio", "models",
     "lmstudio-community", "Qwen2.5-0.5B-Instruct-GGUF", "qwen2.5-0.5b-instruct-fp16.gguf");
+
+static string RouterModelPath() => Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+    ".lmstudio", "models",
+    "lmstudio-community", "Qwen2.5-3B-Instruct-GGUF", "qwen2.5-3b-instruct-q4_k_m.gguf");
 
 static RagTarget ClassifyQuery(string query, LM model)
 {

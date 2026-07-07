@@ -29,7 +29,9 @@ public abstract class RagEngineBase : IDisposable
         Engine = new RagEngine(embeddingModel);
         Engine.AddDataSource(dataSource);
         Engine.DefaultIChunking = new TextChunking { MaxChunkSize = ChunkSize, MaxOverlapSize = ChunkOverlap };
-        Engine.Reranker         = new RagEngine.RagReranker(embeddingModel, rerankedAlpha: RerankAlpha);
+        // Reranker disabled: LM-Kit's RagReranker.RerankAsync throws
+        // "unable to decode token, reason b" on this embedding model/version.
+        // Engine.Reranker      = new RagEngine.RagReranker(embeddingModel, rerankedAlpha: RerankAlpha);
     }
 
     public IList<PartitionSimilarity> FindMatches(string query, int topK = DefaultTopK, float minScore = DefaultMinScore) =>
